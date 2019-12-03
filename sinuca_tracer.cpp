@@ -843,8 +843,8 @@ VOID trace_instruction(TRACE trace, VOID *v) {
         }
 
         // HMC Traces
-        // if (((KnobTrace.Value().compare(0, 3, "x86")) != 0) && icheck_conditions(rtn_name))
-        //     continue;
+        if (((KnobTrace.Value().compare(0, 3, "x86")) != 0) && icheck_conditions(rtn_name))
+            continue;
 
         INS_InsertCall(BBL_InsTail(bbl), IPOINT_BEFORE, AFUNPTR(write_dynamic_char), IARG_PTR, bbl_str, IARG_THREAD_ID, IARG_END);
 
@@ -980,8 +980,8 @@ VOID ImageLoad(IMG img, VOID *) {
     printf("Loading %s, Image id = %d\n", IMG_Name(img).c_str(), IMG_Id(img));
 
     // HMC data initialization - HMC Traces
-    data_instr hmc_x86_data[20], chive_x86_data[60];
-    initialize_intrinsics(hmc_x86_data, chive_x86_data);
+    data_instr hmc_x86_data[20], vim_x86_data[64], mps_x86_data[28];
+    initialize_intrinsics(hmc_x86_data, vim_x86_data, mps_x86_data);
 
     TRACE_GENERATOR_DEBUG_PRINTF("ImageLoad()\n");
     /// Only the thread master runs these calls
@@ -1047,9 +1047,9 @@ VOID ImageLoad(IMG img, VOID *) {
             found_GOMP = false;
             rtn_name = RTN_Name(rtn);
 
-            // Syntetic Traces (HMC, x86, CHIVE)
+            // Syntetic Traces (HMC, x86, VIMA, MIPS)
             if ((KnobTrace.Value().compare(0, 3, "x86")) != 0) {
-                synthetic_trace_generation(rtn_name, hmc_x86_data, chive_x86_data, rtn);
+                synthetic_trace_generation(rtn_name, hmc_x86_data, vim_x86_data, mps_x86_data, rtn);
             }
 
             // ~ if (
