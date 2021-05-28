@@ -7,6 +7,9 @@
 VOID write_dynamic_char(char *dyn_str, THREADID threadid) {
     TRACE_GENERATOR_DEBUG_PRINTF("write_dynamic_char()\n");
     /// If the pin-points disabled this region
+    // char *dyn_exec = new char[32];
+    // sprintf(dyn_exec, "%s\n", dyn_str);
+    // printf("dyn: %c\n", *dyn_str);
     if (!is_instrumented) {
         return;
     }
@@ -16,7 +19,7 @@ VOID write_dynamic_char(char *dyn_str, THREADID threadid) {
         // ex: omp_parallel_start / omp_parallel_end
         PIN_GetLock(&thread_data[threadid].dyn_lock, threadid);
             // ~ gzwrite(thread_data[threadid].gzDynamicTraceFile, dyn_str, strlen(dyn_str));
-            gzwrite(thread_data[threadid].gzDynamicTraceFile, dyn_str, strlen(dyn_str));
+        gzwrite(thread_data[threadid].gzDynamicTraceFile, dyn_str, strlen(dyn_str));
         PIN_ReleaseLock(&thread_data[threadid].dyn_lock);
     }
 };
@@ -34,14 +37,58 @@ VOID write_static_char(char *stat_str) {
 
 // =====================================================================
 
-VOID hmc_write_memory(ADDRINT *read, UINT32 size, UINT32 bbl, THREADID threadid) {
+VOID hmc_write_memory_1param(ADDRINT read, UINT32 size, UINT32 bbl, THREADID threadid) {
     TRACE_GENERATOR_DEBUG_PRINTF("hmc_write_memory()\n");
 
     if (thread_data[threadid].is_instrumented_bbl == false) return;     // If the pin-points disabled this region
 
     char mem_str[TRACE_LINE_SIZE];
 
-    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'R', size, (uint64_t)&read, bbl);
+    // printf("read: %" PRIu64 "\n", (uint64_t)&read);
+
+    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'R', size, (uint64_t)read, bbl);
+    gzwrite(thread_data[threadid].gzMemoryTraceFile, mem_str, strlen(mem_str));
+
+    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'W', size, (uint64_t)read, bbl);
+    gzwrite(thread_data[threadid].gzMemoryTraceFile, mem_str, strlen(mem_str));
+};
+
+VOID hmc_write_memory_2param(ADDRINT read, ADDRINT write, UINT32 size, UINT32 bbl, THREADID threadid) {
+    TRACE_GENERATOR_DEBUG_PRINTF("hmc_write_memory()\n");
+
+    if (thread_data[threadid].is_instrumented_bbl == false) return;     // If the pin-points disabled this region
+
+    char mem_str[TRACE_LINE_SIZE];
+
+    // printf("read1: %" PRIu64 "\n", (uint64_t)&read);
+    // printf("write: %" PRIu64 "\n", (uint64_t)&write);
+
+
+    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'R', size, (uint64_t)read, bbl);
+    gzwrite(thread_data[threadid].gzMemoryTraceFile, mem_str, strlen(mem_str));
+
+    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'W', size, (uint64_t)write, bbl);
+    gzwrite(thread_data[threadid].gzMemoryTraceFile, mem_str, strlen(mem_str));
+};
+
+VOID hmc_write_memory_3param(ADDRINT read1, ADDRINT read2, ADDRINT write, UINT32 size, UINT32 bbl, THREADID threadid) {
+    TRACE_GENERATOR_DEBUG_PRINTF("hmc_write_memory_3param()\n");
+
+    if (thread_data[threadid].is_instrumented_bbl == false) return;     // If the pin-points disabled this region
+
+    char mem_str[TRACE_LINE_SIZE];
+
+    // printf("read1: %" PRIu64 "\n", (uint64_t)&read1);
+    // printf("read2: %" PRIu64 "\n", (uint64_t)&read2);
+    // printf("write: %" PRIu64 "\n", (uint64_t)&write);
+ 
+    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'R', size, (uint64_t)read1, bbl);
+    gzwrite(thread_data[threadid].gzMemoryTraceFile, mem_str, strlen(mem_str));
+    
+    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'R', size, (uint64_t)read2, bbl);
+    gzwrite(thread_data[threadid].gzMemoryTraceFile, mem_str, strlen(mem_str));
+    
+    sprintf(mem_str, "%c %d %" PRIu64 " %d\n", 'W', size, (uint64_t)write, bbl);
     gzwrite(thread_data[threadid].gzMemoryTraceFile, mem_str, strlen(mem_str));
 };
 
@@ -81,7 +128,7 @@ VOID initialize_intrinsics_hmc(data_instr hmc_x86_data[20]) {
 
 // =====================================================================
 
-VOID initialize_intrinsics_vima(data_instr vim_x86_data[64]) {
+VOID initialize_intrinsics_vima(data_instr vim_x86_data[114]) {
     arch_x86_set_data_instr(&vim_x86_data[0], "_vim64_iadds", "VIMA_IADDS_64VECTOR_32OPER", "x86_IADDS_64VECTOR_32OPER", 256);
     arch_x86_set_data_instr(&vim_x86_data[1], "_vim2K_iadds", "VIMA_IADDS_2KVECTOR_32OPER", "x86_IADDS_2KVECTOR_32OPER", 8192);
     arch_x86_set_data_instr(&vim_x86_data[2], "_vim64_iaddu", "VIMA_IADDU_64VECTOR_32OPER", "x86_IADDU_64VECTOR_32OPER", 256);
@@ -96,18 +143,18 @@ VOID initialize_intrinsics_vima(data_instr vim_x86_data[64]) {
     arch_x86_set_data_instr(&vim_x86_data[11], "_vim2K_imaxs", "VIMA_IMAXS_2KVECTOR_32OPER", "x86_IMAXS_2KVECTOR_32OPER", 8192);
     arch_x86_set_data_instr(&vim_x86_data[12], "_vim64_imins", "VIMA_IMINS_64VECTOR_32OPER", "x86_IMINS_64VECTOR_32OPER", 256);
     arch_x86_set_data_instr(&vim_x86_data[13], "_vim2K_imins", "VIMA_IMINS_2KVECTOR_32OPER", "x86_IMINS_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[14], "_vim64_iandu", "VIMA_IANDU_64VECTOR_32OPER", "x86_IANDU_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[15], "_vim2K_iandu", "VIMA_IANDU_2KVECTOR_32OPER", "x86_IANDU_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[16], "_vim64_iorun", "VIMA_IORUN_64VECTOR_32OPER", "x86_IORUN_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[17], "_vim2K_iorun", "VIMA_IORUN_2KVECTOR_32OPER", "x86_IORUN_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[18], "_vim64_ixoru", "VIMA_IXORU_64VECTOR_32OPER", "x86_IXORU_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[19], "_vim2K_ixoru", "VIMA_IXORU_2KVECTOR_32OPER", "x86_IXORU_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[20], "_vim64_inots", "VIMA_INOTS_64VECTOR_32OPER", "x86_INOTS_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[21], "_vim2K_inots", "VIMA_INOTS_2KVECTOR_32OPER", "x86_INOTS_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[22], "_vim64_imsks", "VIMA_IMSKS_64VECTOR_32OPER", "x86_IMSKS_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[23], "_vim2K_imsks", "VIMA_IMSKS_2KVECTOR_32OPER", "x86_IMSKS_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[24], "_vim64_imsku", "VIMA_IMSKU_64VECTOR_32OPER", "x86_IMSKU_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[25], "_vim2K_imsku", "VIMA_IMSKU_2KVECTOR_32OPER", "x86_IMSKU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[14], "_vim64_icpys", "VIMA_ICPYS_64VECTOR_32OPER", "x86_ICPYS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[15], "_vim2K_icpys", "VIMA_ICPYS_2KVECTOR_32OPER", "x86_ICPYS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[16], "_vim64_icpyu", "VIMA_ICPYU_64VECTOR_32OPER", "x86_ICPYU_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[17], "_vim2K_icpyu", "VIMA_ICPYU_2KVECTOR_32OPER", "x86_ICPYU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[18], "_vim64_iandu", "VIMA_IANDU_64VECTOR_32OPER", "x86_IANDU_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[19], "_vim2K_iandu", "VIMA_IANDU_2KVECTOR_32OPER", "x86_IANDU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[20], "_vim64_iorun", "VIMA_IORUN_64VECTOR_32OPER", "x86_IORUN_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[21], "_vim2K_iorun", "VIMA_IORUN_2KVECTOR_32OPER", "x86_IORUN_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[22], "_vim64_ixoru", "VIMA_IXORU_64VECTOR_32OPER", "x86_IXORU_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[23], "_vim2K_ixoru", "VIMA_IXORU_2KVECTOR_32OPER", "x86_IXORU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[24], "_vim64_inots", "VIMA_INOTS_64VECTOR_32OPER", "x86_INOTS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[25], "_vim2K_inots", "VIMA_INOTS_2KVECTOR_32OPER", "x86_INOTS_2KVECTOR_32OPER", 8192);
     arch_x86_set_data_instr(&vim_x86_data[26], "_vim64_islts", "VIMA_ISLTS_64VECTOR_32OPER", "x86_ISLTS_64VECTOR_32OPER", 256);
     arch_x86_set_data_instr(&vim_x86_data[27], "_vim2K_islts", "VIMA_ISLTS_2KVECTOR_32OPER", "x86_ISLTS_2KVECTOR_32OPER", 8192);
     arch_x86_set_data_instr(&vim_x86_data[28], "_vim64_isltu", "VIMA_ISLTU_64VECTOR_32OPER", "x86_ISLTU_64VECTOR_32OPER", 256);
@@ -126,26 +173,76 @@ VOID initialize_intrinsics_vima(data_instr vim_x86_data[64]) {
     arch_x86_set_data_instr(&vim_x86_data[41], "_vim2K_idivs", "VIMA_IDIVS_2KVECTOR_32OPER", "x86_IDIVS_2KVECTOR_32OPER", 8192);
     arch_x86_set_data_instr(&vim_x86_data[42], "_vim64_idivu", "VIMA_IDIVU_64VECTOR_32OPER", "x86_IDIVU_64VECTOR_32OPER", 256);
     arch_x86_set_data_instr(&vim_x86_data[43], "_vim2K_idivu", "VIMA_IDIVU_2KVECTOR_32OPER", "x86_IDIVU_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[44], "_vim64_imods", "VIMA_IMODS_64VECTOR_32OPER", "x86_IMODS_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[45], "_vim2K_imods", "VIMA_IMODS_2KVECTOR_32OPER", "x86_IMODS_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[46], "_vim64_imodu", "VIMA_IMODU_64VECTOR_32OPER", "x86_IMODU_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[47], "_vim2K_imodu", "VIMA_IMODU_2KVECTOR_32OPER", "x86_IMODU_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[48], "_vim64_imuls", "VIMA_IMULTS_64VECTOR_32OPER", "x86_IMULTS_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[49], "_vim2K_imuls", "VIMA_IMULTS_2KVECTOR_32OPER", "x86_IMULTS_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[50], "_vim64_imulu", "VIMA_IMULTU_64VECTOR_32OPER", "x86_IMULTU_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[51], "_vim2K_imulu", "VIMA_IMULTU_2KVECTOR_32OPER", "x86_IMULTU_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[52], "_vim32_imuls", "VIMA_IMULTS_32VECTOR_64OPER", "x86_IMULTS_32VECTOR_64OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[53], "_vim1K_imuls", "VIMA_IMULTS_1KVECTOR_64OPER", "x86_IMULTS_1KVECTOR_64OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[54], "_vim32_imulu", "VIMA_IMULTU_32VECTOR_64OPER", "x86_IMULTU_32VECTOR_64OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[55], "_vim1K_imulu", "VIMA_IMULTU_1KVECTOR_64OPER", "x86_IMULTU_1KVECTOR_64OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[56], "_vim64_imovs", "VIMA_IMOVS_64VECTOR_32OPER", "x86_IMOVS_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[57], "_vim2K_imovs", "VIMA_IMOVS_2KVECTOR_32OPER", "x86_IMOVS_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[58], "_vim64_imovu", "VIMA_IMOVU_64VECTOR_32OPER", "x86_IMOVU_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[59], "_vim2K_imovu", "VIMA_IMOVU_2KVECTOR_32OPER", "x86_IMOVU_2KVECTOR_32OPER", 8192);
-    arch_x86_set_data_instr(&vim_x86_data[60], "_vim64_fmovs", "VIMA_FMOVS_64VECTOR_32OPER", "x86_FMOVS_2KVECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[61], "_vim64_fsubs", "VIMA_FSUBS_64VECTOR_32OPER", "x86_FSUBS_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[62], "_vim64_fmuls", "VIMA_FMULS_64VECTOR_32OPER", "x86_FMULS_64VECTOR_32OPER", 256);
-    arch_x86_set_data_instr(&vim_x86_data[63], "_vim64_fcsum", "VIMA_FCSUM_64VECTOR_32OPER", "x86_FCSUM_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[44], "_vim32_idivs", "VIMA_IDIVS_32VECTOR_64OPER", "x86_IDIVS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[45], "_vim1K_idivs", "VIMA_IDIVS_1KVECTOR_32OPER", "x86_IDIVS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[46], "_vim32_idivu", "VIMA_IDIVU_32VECTOR_64OPER", "x86_IDIVU_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[47], "_vim1K_idivu", "VIMA_IDIVU_1KVECTOR_32OPER", "x86_IDIVU_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[48], "_vim64_imuls", "VIMA_IMULS_64VECTOR_32OPER", "x86_IMULS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[49], "_vim2K_imuls", "VIMA_IMULS_2KVECTOR_32OPER", "x86_IMULS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[50], "_vim64_imulu", "VIMA_IMULU_64VECTOR_32OPER", "x86_IMULU_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[51], "_vim2K_imulu", "VIMA_IMULU_2KVECTOR_32OPER", "x86_IMULU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[52], "_vim32_imuls", "VIMA_IMULS_32VECTOR_64OPER", "x86_IMULS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[53], "_vim1K_imuls", "VIMA_IMULS_1KVECTOR_32OPER", "x86_IMULS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[54], "_vim32_imulu", "VIMA_IMULU_32VECTOR_64OPER", "x86_IMULU_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[55], "_vim1K_imulu", "VIMA_IMULU_1KVECTOR_32OPER", "x86_IMULU_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[56], "_vim64_icumu", "VIMA_IMADU_64VECTOR_32OPER", "x86_IMADU_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[57], "_vim2K_icumu", "VIMA_IMADU_2KVECTOR_32OPER", "x86_IMADU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[58], "_vim64_icums", "VIMA_IMADS_64VECTOR_32OPER", "x86_IMADS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[59], "_vim2K_icums", "VIMA_IMADS_2KVECTOR_32OPER", "x86_IMULU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[60], "_vim64_imovs", "VIMA_IMOVS_64VECTOR_32OPER", "x86_IMOVS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[61], "_vim2K_imovs", "VIMA_IMOVS_2KVECTOR_32OPER", "x86_IMOVS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[62], "_vim64_imovu", "VIMA_IMOVU_64VECTOR_32OPER", "x86_IMOVU_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[63], "_vim2K_imovu", "VIMA_IMOVU_2KVECTOR_32OPER", "x86_IMOVU_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[64], "_vim64_fadds", "VIMA_FADDS_64VECTOR_32OPER", "x86_FADDS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[65], "_vim2K_fadds", "VIMA_FADDS_2KVECTOR_32OPER", "x86_FADDS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[66], "_vim64_fsubs", "VIMA_FSUBS_64VECTOR_32OPER", "x86_FSUBS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[67], "_vim2K_fsubs", "VIMA_FSUBS_2KVECTOR_32OPER", "x86_FSUBS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[68], "_vim64_fabss", "VIMA_FABSS_64VECTOR_32OPER", "x86_FABSS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[69], "_vim2K_fabss", "VIMA_FABSS_2KVECTOR_32OPER", "x86_FABSS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[70], "_vim64_fmaxs", "VIMA_FMAXS_64VECTOR_32OPER", "x86_FMAXS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[71], "_vim2K_fmaxs", "VIMA_FMAXS_2KVECTOR_32OPER", "x86_FMAXS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[72], "_vim64_fmins", "VIMA_FMINS_64VECTOR_32OPER", "x86_FMINS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[73], "_vim2K_fmins", "VIMA_FMINS_2KVECTOR_32OPER", "x86_FMINS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[74], "_vim64_fcpys", "VIMA_FCPYS_64VECTOR_32OPER", "x86_FCPYS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[75], "_vim2K_fcpys", "VIMA_FCPYS_2KVECTOR_32OPER", "x86_FCPYS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[76], "_vim64_fslts", "VIMA_FSLTS_64VECTOR_32OPER", "x86_FSLTS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[77], "_vim2K_fslts", "VIMA_FSLTS_2KVECTOR_32OPER", "x86_FSLTS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[78], "_vim64_fcmqs", "VIMA_FCMQS_64VECTOR_32OPER", "x86_FCMQS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[79], "_vim2K_fcmqs", "VIMA_FCMQS_2KVECTOR_32OPER", "x86_FCMQS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[80], "_vim64_fdivs", "VIMA_FDIVS_64VECTOR_32OPER", "x86_FDIVS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[81], "_vim2K_fdivs", "VIMA_FDIVS_2KVECTOR_32OPER", "x86_FDIVS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[82], "_vim64_fmuls", "VIMA_FMULS_64VECTOR_32OPER", "x86_FMULS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[83], "_vim2K_fmuls", "VIMA_FMULS_2KVECTOR_32OPER", "x86_FMULS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[84], "_vim64_fcums", "VIMA_FMADS_64VECTOR_32OPER", "x86_FMADS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[85], "_vim2K_fcums", "VIMA_FMADS_2KVECTOR_32OPER", "x86_FMADS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[86], "_vim64_fmovs", "VIMA_FMOVS_64VECTOR_32OPER", "x86_FMOVS_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[87], "_vim2K_fmovs", "VIMA_FMOVS_2KVECTOR_32OPER", "x86_FMOVS_2KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[88], "_vim32_dadds", "VIMA_DADDS_32VECTOR_64OPER", "x86_DADDS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[89], "_vim1K_dadds", "VIMA_DADDS_1KVECTOR_32OPER", "x86_DADDS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[90], "_vim32_dsubs", "VIMA_DSUBS_32VECTOR_64OPER", "x86_DSUBS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[91], "_vim1K_dsubs", "VIMA_DSUBS_1KVECTOR_32OPER", "x86_DSUBS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[92], "_vim32_dabss", "VIMA_DABSS_32VECTOR_64OPER", "x86_DABSS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[93], "_vim1K_dabss", "VIMA_DABSS_1KVECTOR_32OPER", "x86_DABSS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[94], "_vim32_dmaxs", "VIMA_DMAXS_32VECTOR_64OPER", "x86_DMAXS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[95], "_vim1K_dmaxs", "VIMA_DMAXS_1KVECTOR_32OPER", "x86_DMAXS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[96], "_vim32_dmins", "VIMA_DMINS_32VECTOR_64OPER", "x86_DMINS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[97], "_vim1K_dmins", "VIMA_DMINS_1KVECTOR_32OPER", "x86_DMINS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[98], "_vim32_dcpys", "VIMA_DCPYS_32VECTOR_64OPER", "x86_DCPYS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[99], "_vim1K_dcpys", "VIMA_DCPYS_1KVECTOR_32OPER", "x86_DCPYS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[100], "_vim32_dslts", "VIMA_DSLTS_32VECTOR_64OPER", "x86_DSLTS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[101], "_vim1K_dslts", "VIMA_DSLTS_1KVECTOR_32OPER", "x86_DSLTS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[102], "_vim32_dcmqs", "VIMA_DCMQS_32VECTOR_64OPER", "x86_DCMQS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[103], "_vim1K_dcmqs", "VIMA_DCMQS_1KVECTOR_32OPER", "x86_DCMQS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[104], "_vim32_ddivs", "VIMA_DDIVS_32VECTOR_64OPER", "x86_DDIVS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[105], "_vim1K_ddivs", "VIMA_DDIVS_1KVECTOR_32OPER", "x86_DDIVS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[106], "_vim32_dmuls", "VIMA_DMULS_32VECTOR_64OPER", "x86_DMULS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[107], "_vim1K_dmuls", "VIMA_DMULS_1KVECTOR_32OPER", "x86_DMULS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[108], "_vim32_dcums", "VIMA_DMADS_32VECTOR_64OPER", "x86_DMADS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[109], "_vim1K_dcums", "VIMA_DMADS_1KVECTOR_32OPER", "x86_DMADS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[110], "_vim32_dmovs", "VIMA_DMOVS_32VECTOR_64OPER", "x86_DMOVS_32VECTOR_64OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[111], "_vim1K_dmovs", "VIMA_DMOVS_1KVECTOR_32OPER", "x86_DMOVS_1KVECTOR_32OPER", 8192);
+    arch_x86_set_data_instr(&vim_x86_data[112], "_vim64_ilmku", "VIMA_ILMKU_64VECTOR_32OPER", "x86_ILMKU_64VECTOR_32OPER", 256);
+    arch_x86_set_data_instr(&vim_x86_data[113], "_vim2K_ilmku", "VIMA_ILMKU_2KVECTOR_32OPER", "x86_ILMKU_2KVECTOR_32OPER", 8192);
 }
 
 // =====================================================================
@@ -183,7 +280,7 @@ VOID initialize_intrinsics_mips(data_instr mps_x86_data[28]) {
 
 // =====================================================================
 
-VOID initialize_intrinsics(data_instr hmc_x86_data[20], data_instr vim_x86_data[64], data_instr mps_x86_data[28]) {
+VOID initialize_intrinsics(data_instr hmc_x86_data[20], data_instr vim_x86_data[114], data_instr mps_x86_data[28]) {
     // HMC instructions
     initialize_intrinsics_hmc(hmc_x86_data);
     // VIMA instructions
@@ -224,78 +321,70 @@ INT icheck_conditions_hmc(std::string rtn_name) {
 
 INT icheck_conditions_vima(std::string rtn_name) {
     if ((rtn_name.compare(4, cmp_name20.size(), cmp_name20.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name21.size(), cmp_name21.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name22.size(), cmp_name22.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name23.size(), cmp_name23.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name24.size(), cmp_name24.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name25.size(), cmp_name25.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name26.size(), cmp_name26.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name27.size(), cmp_name27.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name28.size(), cmp_name28.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name29.size(), cmp_name29.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name30.size(), cmp_name30.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name31.size(), cmp_name31.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name32.size(), cmp_name32.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name33.size(), cmp_name33.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name34.size(), cmp_name34.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name35.size(), cmp_name35.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name36.size(), cmp_name36.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name37.size(), cmp_name37.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name38.size(), cmp_name38.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name39.size(), cmp_name39.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name40.size(), cmp_name40.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name41.size(), cmp_name41.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name42.size(), cmp_name42.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name43.size(), cmp_name43.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name44.size(), cmp_name44.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name45.size(), cmp_name45.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name46.size(), cmp_name46.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name47.size(), cmp_name47.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name48.size(), cmp_name48.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name49.size(), cmp_name49.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name50.size(), cmp_name50.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name51.size(), cmp_name51.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name52.size(), cmp_name52.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name53.size(), cmp_name53.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name54.size(), cmp_name54.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name55.size(), cmp_name55.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name56.size(), cmp_name56.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name57.size(), cmp_name57.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name58.size(), cmp_name58.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name59.size(), cmp_name59.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name60.size(), cmp_name60.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name61.size(), cmp_name61.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name62.size(), cmp_name62.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name63.size(), cmp_name63.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name64.size(), cmp_name64.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name65.size(), cmp_name65.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name66.size(), cmp_name66.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name67.size(), cmp_name67.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name68.size(), cmp_name68.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name69.size(), cmp_name69.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name70.size(), cmp_name70.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name71.size(), cmp_name71.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name72.size(), cmp_name72.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name73.size(), cmp_name73.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name74.size(), cmp_name74.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name75.size(), cmp_name75.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name76.size(), cmp_name76.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name77.size(), cmp_name77.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name78.size(), cmp_name78.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name79.size(), cmp_name79.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name80.size(), cmp_name80.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name81.size(), cmp_name81.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name82.size(), cmp_name82.c_str()) == 0) ||
-    (rtn_name.compare(4, cmp_name83.size(), cmp_name83.c_str()) == 0)) {
-        return 1;
-    }
-    return 0;
-}
-
-// =====================================================================
-
-INT icheck_conditions_mips(std::string rtn_name) {
-    if ((rtn_name.compare(4, cmp_name84.size(), cmp_name84.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name21.size(), cmp_name21.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name22.size(), cmp_name22.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name23.size(), cmp_name23.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name24.size(), cmp_name24.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name25.size(), cmp_name25.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name26.size(), cmp_name26.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name27.size(), cmp_name27.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name28.size(), cmp_name28.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name29.size(), cmp_name29.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name30.size(), cmp_name30.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name31.size(), cmp_name31.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name32.size(), cmp_name32.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name33.size(), cmp_name33.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name34.size(), cmp_name34.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name35.size(), cmp_name35.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name36.size(), cmp_name36.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name37.size(), cmp_name37.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name38.size(), cmp_name38.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name39.size(), cmp_name39.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name40.size(), cmp_name40.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name41.size(), cmp_name41.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name42.size(), cmp_name42.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name43.size(), cmp_name43.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name44.size(), cmp_name44.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name45.size(), cmp_name45.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name46.size(), cmp_name46.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name47.size(), cmp_name47.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name48.size(), cmp_name48.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name49.size(), cmp_name49.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name50.size(), cmp_name50.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name51.size(), cmp_name51.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name52.size(), cmp_name52.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name53.size(), cmp_name53.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name54.size(), cmp_name54.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name55.size(), cmp_name55.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name56.size(), cmp_name56.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name57.size(), cmp_name57.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name58.size(), cmp_name58.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name59.size(), cmp_name59.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name60.size(), cmp_name60.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name61.size(), cmp_name61.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name62.size(), cmp_name62.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name63.size(), cmp_name63.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name64.size(), cmp_name64.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name65.size(), cmp_name65.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name66.size(), cmp_name66.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name67.size(), cmp_name67.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name68.size(), cmp_name68.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name69.size(), cmp_name69.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name70.size(), cmp_name70.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name71.size(), cmp_name71.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name72.size(), cmp_name72.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name73.size(), cmp_name73.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name74.size(), cmp_name74.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name75.size(), cmp_name75.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name76.size(), cmp_name76.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name77.size(), cmp_name77.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name78.size(), cmp_name78.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name79.size(), cmp_name79.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name80.size(), cmp_name80.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name81.size(), cmp_name81.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name82.size(), cmp_name82.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name83.size(), cmp_name83.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name84.size(), cmp_name84.c_str()) == 0) ||
         (rtn_name.compare(4, cmp_name85.size(), cmp_name85.c_str()) == 0) ||
         (rtn_name.compare(4, cmp_name86.size(), cmp_name86.c_str()) == 0) ||
         (rtn_name.compare(4, cmp_name87.size(), cmp_name87.c_str()) == 0) ||
@@ -322,7 +411,65 @@ INT icheck_conditions_mips(std::string rtn_name) {
         (rtn_name.compare(4, cmp_name108.size(), cmp_name108.c_str()) == 0) ||
         (rtn_name.compare(4, cmp_name109.size(), cmp_name109.c_str()) == 0) ||
         (rtn_name.compare(4, cmp_name110.size(), cmp_name110.c_str()) == 0) ||
-        (rtn_name.compare(4, cmp_name111.size(), cmp_name111.c_str()) == 0) ) {
+        (rtn_name.compare(4, cmp_name111.size(), cmp_name111.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name112.size(), cmp_name112.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name113.size(), cmp_name113.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name114.size(), cmp_name114.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name115.size(), cmp_name115.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name116.size(), cmp_name116.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name117.size(), cmp_name117.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name118.size(), cmp_name118.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name119.size(), cmp_name119.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name120.size(), cmp_name120.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name121.size(), cmp_name121.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name122.size(), cmp_name122.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name123.size(), cmp_name123.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name124.size(), cmp_name124.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name125.size(), cmp_name125.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name126.size(), cmp_name126.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name127.size(), cmp_name127.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name128.size(), cmp_name128.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name129.size(), cmp_name129.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name130.size(), cmp_name130.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name131.size(), cmp_name131.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name160.size(), cmp_name160.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name161.size(), cmp_name161.c_str()) == 0) ){
+        return 1;
+    }
+    return 0;
+}
+
+// =====================================================================
+
+INT icheck_conditions_mips(std::string rtn_name) {
+    if ((rtn_name.compare(4, cmp_name132.size(), cmp_name132.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name133.size(), cmp_name133.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name134.size(), cmp_name134.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name135.size(), cmp_name135.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name136.size(), cmp_name136.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name137.size(), cmp_name137.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name138.size(), cmp_name138.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name139.size(), cmp_name139.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name140.size(), cmp_name140.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name141.size(), cmp_name141.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name142.size(), cmp_name142.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name143.size(), cmp_name143.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name144.size(), cmp_name144.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name145.size(), cmp_name145.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name146.size(), cmp_name146.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name147.size(), cmp_name147.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name148.size(), cmp_name148.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name149.size(), cmp_name149.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name150.size(), cmp_name150.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name151.size(), cmp_name151.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name152.size(), cmp_name152.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name153.size(), cmp_name153.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name154.size(), cmp_name154.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name155.size(), cmp_name155.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name156.size(), cmp_name156.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name157.size(), cmp_name157.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name158.size(), cmp_name158.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name159.size(), cmp_name159.c_str()) == 0)) {
         return 1;
     }
     return 0;
@@ -337,6 +484,50 @@ INT icheck_conditions(std::string rtn_name) {
 };
 
 // =====================================================================
+
+INT icheck_2parameters(std::string rtn_name) {
+    if ((rtn_name.compare(4, cmp_name28.size(), cmp_name28.c_str()) == 0) || //abs int
+        (rtn_name.compare(4, cmp_name29.size(), cmp_name29.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name34.size(), cmp_name34.c_str()) == 0) || //move data int
+        (rtn_name.compare(4, cmp_name35.size(), cmp_name35.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name36.size(), cmp_name36.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name37.size(), cmp_name37.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name44.size(), cmp_name44.c_str()) == 0) || //not
+        (rtn_name.compare(4, cmp_name45.size(), cmp_name45.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name76.size(), cmp_name76.c_str()) == 0) || //multiply-add int
+        (rtn_name.compare(4, cmp_name77.size(), cmp_name77.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name78.size(), cmp_name78.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name79.size(), cmp_name79.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name88.size(), cmp_name88.c_str()) == 0) || //abs float
+        (rtn_name.compare(4, cmp_name89.size(), cmp_name89.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name94.size(), cmp_name94.c_str()) == 0) || //move data float
+        (rtn_name.compare(4, cmp_name95.size(), cmp_name95.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name104.size(), cmp_name104.c_str()) == 0) || //multiply-add float
+        (rtn_name.compare(4, cmp_name105.size(), cmp_name105.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name112.size(), cmp_name112.c_str()) == 0) || //abs double
+        (rtn_name.compare(4, cmp_name113.size(), cmp_name113.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name118.size(), cmp_name118.c_str()) == 0) || //move data double
+        (rtn_name.compare(4, cmp_name119.size(), cmp_name119.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name128.size(), cmp_name128.c_str()) == 0) || //multiply-add double
+        (rtn_name.compare(4, cmp_name129.size(), cmp_name129.c_str()) == 0)) {
+            return 1;
+    }
+    return 0;
+}
+
+INT icheck_1parameter(std::string rtn_name) {
+    if ((rtn_name.compare(4, cmp_name80.size(), cmp_name80.c_str()) == 0) || //move immediate int
+        (rtn_name.compare(4, cmp_name81.size(), cmp_name81.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name82.size(), cmp_name82.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name83.size(), cmp_name83.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name106.size(), cmp_name106.c_str()) == 0) || //move immediate float
+        (rtn_name.compare(4, cmp_name107.size(), cmp_name107.c_str()) == 0) ||
+        (rtn_name.compare(4, cmp_name130.size(), cmp_name130.c_str()) == 0) || //move immediate double
+        (rtn_name.compare(4, cmp_name131.size(), cmp_name131.c_str()) == 0)) {
+            return 1;
+    }
+    return 0;
+}
 
 VOID arch_x86_trace_instruction(RTN arch_rtn, data_instr archx_x86_data) {
     opcode_package_t NewInstruction;
@@ -358,8 +549,28 @@ VOID arch_x86_trace_instruction(RTN arch_rtn, data_instr archx_x86_data) {
         bicount = 0;
         char *hmc_bbl_str = new char[32];
         sprintf(hmc_bbl_str, "%u\n", count_trace);
-        RTN_InsertCall(arch_rtn, IPOINT_BEFORE, (AFUNPTR)hmc_write_memory, IARG_FUNCARG_ENTRYPOINT_VALUE, 0, IARG_UINT32, archx_x86_data.instr_len, IARG_UINT32, count_trace, IARG_THREAD_ID, IARG_END);
+
         RTN_InsertCall(arch_rtn, IPOINT_BEFORE, (AFUNPTR)write_dynamic_char, IARG_PTR, hmc_bbl_str, IARG_THREAD_ID, IARG_END);
+        
+        if (icheck_1parameter(rtn_name) == 1) {
+            RTN_InsertCall(arch_rtn, IPOINT_BEFORE, (AFUNPTR)hmc_write_memory_1param, 
+                            IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                            IARG_UINT32, archx_x86_data.instr_len, 
+                            IARG_UINT32, count_trace, IARG_THREAD_ID, IARG_END);
+        } else if (icheck_2parameters(rtn_name) == 1) {
+            RTN_InsertCall(arch_rtn, IPOINT_BEFORE, (AFUNPTR)hmc_write_memory_2param, 
+                            IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                            IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                            IARG_UINT32, archx_x86_data.instr_len, 
+                            IARG_UINT32, count_trace, IARG_THREAD_ID, IARG_END);
+        } else {
+            RTN_InsertCall(arch_rtn, IPOINT_BEFORE, (AFUNPTR)hmc_write_memory_3param, 
+                            IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+                            IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                            IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
+                            IARG_UINT32, archx_x86_data.instr_len, 
+                            IARG_UINT32, count_trace, IARG_THREAD_ID, IARG_END);            
+        }
 
         for (i = 0; i < MAX_REGISTER_NUMBER; i++) {
             read_regs[i] = false;
@@ -369,7 +580,7 @@ VOID arch_x86_trace_instruction(RTN arch_rtn, data_instr archx_x86_data) {
         // Identify read/write registers
         for(INS ins = RTN_InsHead(arch_rtn); INS_Valid(ins); ins = INS_Next(ins)) {
 
-            // record all read registers
+             // record all read registers
             for (i = 0; i < INS_MaxNumRRegs(ins); i++) {
                 rreg = INS_RegR(ins, i);
                 if (rreg > 0 && read_regs[rreg] == false && write_regs[rreg] == false) {
@@ -397,6 +608,7 @@ VOID arch_x86_trace_instruction(RTN arch_rtn, data_instr archx_x86_data) {
                 read_regs[ireg] = true;
                 bicount++;
             }
+            
         }
 
         // Record all read and write registers into read and write register's list
@@ -423,34 +635,166 @@ VOID arch_x86_trace_instruction(RTN arch_rtn, data_instr archx_x86_data) {
         // Record opcode size
         NewInstruction.opcode_size = archx_x86_data.instr_len;
 
-        if (icheck_conditions_vima(rtn_name)) {
-            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_HIVE_INT_ALU;
-            // tratar os demais casos: INSTRUCTION_OPERATION_HIVE_INT_MUL, INSTRUCTION_OPERATION_HIVE_INT_DIV
+        if ((rtn_name.compare(4, cmp_name28.size(), cmp_name28.c_str()) == 0) || //abs int
+            (rtn_name.compare(4, cmp_name29.size(), cmp_name29.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name88.size(), cmp_name88.c_str()) == 0) || //abs float
+            (rtn_name.compare(4, cmp_name89.size(), cmp_name89.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name112.size(), cmp_name112.c_str()) == 0) || //abs double
+            (rtn_name.compare(4, cmp_name113.size(), cmp_name113.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name20.size(), cmp_name20.c_str()) == 0) || //add int
+            (rtn_name.compare(4, cmp_name21.size(), cmp_name21.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name22.size(), cmp_name22.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name23.size(), cmp_name23.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name30.size(), cmp_name30.c_str()) == 0) || //max int
+            (rtn_name.compare(4, cmp_name31.size(), cmp_name31.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name32.size(), cmp_name32.c_str()) == 0) || //min int
+            (rtn_name.compare(4, cmp_name33.size(), cmp_name33.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name24.size(), cmp_name24.c_str()) == 0) || //sub int
+            (rtn_name.compare(4, cmp_name25.size(), cmp_name25.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name26.size(), cmp_name26.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name27.size(), cmp_name27.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name38.size(), cmp_name38.c_str()) == 0) || //and
+            (rtn_name.compare(4, cmp_name39.size(), cmp_name39.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name42.size(), cmp_name42.c_str()) == 0) || //xor
+            (rtn_name.compare(4, cmp_name43.size(), cmp_name43.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name44.size(), cmp_name44.c_str()) == 0) || //not
+            (rtn_name.compare(4, cmp_name45.size(), cmp_name45.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name40.size(), cmp_name40.c_str()) == 0) || //or
+            (rtn_name.compare(4, cmp_name41.size(), cmp_name41.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name54.size(), cmp_name54.c_str()) == 0) || //shift left
+            (rtn_name.compare(4, cmp_name55.size(), cmp_name55.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name56.size(), cmp_name56.c_str()) == 0) || //shift right
+            (rtn_name.compare(4, cmp_name57.size(), cmp_name57.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name58.size(), cmp_name58.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name59.size(), cmp_name59.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name50.size(), cmp_name50.c_str()) == 0) || //compare equal
+            (rtn_name.compare(4, cmp_name51.size(), cmp_name51.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name52.size(), cmp_name52.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name53.size(), cmp_name53.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name46.size(), cmp_name46.c_str()) == 0) || //compare less than equal
+            (rtn_name.compare(4, cmp_name47.size(), cmp_name47.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name48.size(), cmp_name48.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name49.size(), cmp_name49.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name80.size(), cmp_name80.c_str()) == 0) || //move data int
+            (rtn_name.compare(4, cmp_name81.size(), cmp_name81.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name82.size(), cmp_name82.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name83.size(), cmp_name83.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name106.size(), cmp_name106.c_str()) == 0) || //move data float
+            (rtn_name.compare(4, cmp_name107.size(), cmp_name107.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name130.size(), cmp_name130.c_str()) == 0) || //move data double
+            (rtn_name.compare(4, cmp_name131.size(), cmp_name131.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name34.size(), cmp_name34.c_str()) == 0) || //move immediate int
+            (rtn_name.compare(4, cmp_name35.size(), cmp_name35.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name36.size(), cmp_name36.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name37.size(), cmp_name37.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name94.size(), cmp_name94.c_str()) == 0) || //move immediate float
+            (rtn_name.compare(4, cmp_name95.size(), cmp_name95.c_str()) == 0) ||
+            (rtn_name.compare(4, cmp_name118.size(), cmp_name118.c_str()) == 0) || //move immediate double
+            (rtn_name.compare(4, cmp_name119.size(), cmp_name119.c_str()) == 0) ||            
+            (rtn_name.compare(4, cmp_name160.size(), cmp_name160.c_str()) == 0) || //sairo
+            (rtn_name.compare(4, cmp_name161.size(), cmp_name161.c_str()) == 0)){
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_INT_ALU;
+        }
+        else if ((rtn_name.compare(4, cmp_name84.size(), cmp_name84.c_str()) == 0) || //add float
+                 (rtn_name.compare(4, cmp_name85.size(), cmp_name85.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name108.size(), cmp_name108.c_str()) == 0) || //add double
+                 (rtn_name.compare(4, cmp_name109.size(), cmp_name109.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name90.size(), cmp_name90.c_str()) == 0) || //max float
+                 (rtn_name.compare(4, cmp_name91.size(), cmp_name91.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name114.size(), cmp_name114.c_str()) == 0) || //max double
+                 (rtn_name.compare(4, cmp_name115.size(), cmp_name115.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name92.size(), cmp_name92.c_str()) == 0) || //min float
+                 (rtn_name.compare(4, cmp_name93.size(), cmp_name93.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name116.size(), cmp_name116.c_str()) == 0) || //min double
+                 (rtn_name.compare(4, cmp_name117.size(), cmp_name117.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name86.size(), cmp_name86.c_str()) == 0) || //sub float
+                 (rtn_name.compare(4, cmp_name87.size(), cmp_name87.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name110.size(), cmp_name110.c_str()) == 0) || //sub double
+                 (rtn_name.compare(4, cmp_name111.size(), cmp_name111.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name98.size(), cmp_name98.c_str()) == 0) || //compare equal float
+                 (rtn_name.compare(4, cmp_name99.size(), cmp_name99.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name122.size(), cmp_name122.c_str()) == 0) || //compare equal double
+                 (rtn_name.compare(4, cmp_name123.size(), cmp_name123.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name96.size(), cmp_name96.c_str()) == 0) || //compare less than equal float
+                 (rtn_name.compare(4, cmp_name97.size(), cmp_name97.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name120.size(), cmp_name120.c_str()) == 0) || //compare less than equal double
+                 (rtn_name.compare(4, cmp_name121.size(), cmp_name121.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_FP_ALU;
+        }
+        else if ((rtn_name.compare(4, cmp_name68.size(), cmp_name68.c_str()) == 0) || //multiply int
+                 (rtn_name.compare(4, cmp_name69.size(), cmp_name69.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name70.size(), cmp_name70.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name71.size(), cmp_name71.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name72.size(), cmp_name72.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name73.size(), cmp_name73.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name74.size(), cmp_name74.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name75.size(), cmp_name75.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_INT_MUL;
+        }
+        else if ((rtn_name.compare(4, cmp_name102.size(), cmp_name102.c_str()) == 0) || //multiply float
+                 (rtn_name.compare(4, cmp_name103.size(), cmp_name103.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name126.size(), cmp_name126.c_str()) == 0) || //multiply double
+                 (rtn_name.compare(4, cmp_name127.size(), cmp_name127.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_FP_MUL;
+        }
+        else if ((rtn_name.compare(4, cmp_name60.size(), cmp_name60.c_str()) == 0) || //divide int
+                 (rtn_name.compare(4, cmp_name61.size(), cmp_name61.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name62.size(), cmp_name62.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name63.size(), cmp_name63.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name64.size(), cmp_name64.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name65.size(), cmp_name65.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name66.size(), cmp_name66.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name67.size(), cmp_name67.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_INT_DIV;
+        }
+        else if ((rtn_name.compare(4, cmp_name100.size(), cmp_name100.c_str()) == 0) || //divide float
+                 (rtn_name.compare(4, cmp_name101.size(), cmp_name101.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name124.size(), cmp_name124.c_str()) == 0) || //divide double
+                 (rtn_name.compare(4, cmp_name125.size(), cmp_name125.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_FP_DIV;
+        }
+        else if ((rtn_name.compare(4, cmp_name76.size(), cmp_name76.c_str()) == 0) || //multiply-add int
+                 (rtn_name.compare(4, cmp_name77.size(), cmp_name77.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name78.size(), cmp_name78.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name79.size(), cmp_name79.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_INT_MLA;
+        }
+        else if ((rtn_name.compare(4, cmp_name104.size(), cmp_name104.c_str()) == 0) || //multiply-add float
+                 (rtn_name.compare(4, cmp_name105.size(), cmp_name105.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name128.size(), cmp_name128.c_str()) == 0) || //multiply-add double
+                 (rtn_name.compare(4, cmp_name129.size(), cmp_name129.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_VIMA_FP_MLA;
+        }
+        else if ((rtn_name.compare(4, cmp_name0.size(), cmp_name0.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name1.size(), cmp_name1.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name2.size(), cmp_name2.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name9.size(), cmp_name9.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name10.size(), cmp_name10.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name17.size(), cmp_name17.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name9.size(), cmp_name9.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name10.size(), cmp_name10.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name17.size(), cmp_name17.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name18.size(), cmp_name18.c_str()) == 0) ||
+                 (rtn_name.compare(4, cmp_name19.size(), cmp_name19.c_str()) == 0)) {
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_HMC_ROA;
         } else {
-            if ((rtn_name.compare(4, cmp_name0.size(), cmp_name0.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name1.size(), cmp_name1.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name2.size(), cmp_name2.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name9.size(), cmp_name9.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name10.size(), cmp_name10.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name17.size(), cmp_name17.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name9.size(), cmp_name9.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name10.size(), cmp_name10.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name17.size(), cmp_name17.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name18.size(), cmp_name18.c_str()) == 0) ||
-            (rtn_name.compare(4, cmp_name19.size(), cmp_name19.c_str()) == 0)) {
-                NewInstruction.opcode_operation = INSTRUCTION_OPERATION_HMC_ROA;
-            } else {
-                NewInstruction.opcode_operation = INSTRUCTION_OPERATION_HMC_ROWA;
-            }
+            NewInstruction.opcode_operation = INSTRUCTION_OPERATION_HMC_ROWA;
         }
 
-        NewInstruction.is_read = 1;
-        NewInstruction.is_read2 = 0;
-        NewInstruction.is_write = 0;
+        if ((icheck_2parameters(rtn_name) == 1) || icheck_1parameter(rtn_name) == 1) {
+            NewInstruction.is_read = 1;
+            NewInstruction.is_read2 = 0;
+            NewInstruction.is_write = 1;
+        } else {
+            NewInstruction.is_read2 = 1;
+            NewInstruction.is_read = 1;
+            NewInstruction.is_write = 1;
+        }
+
         NewInstruction.is_indirect = 0;
         NewInstruction.is_predicated = 0;
-        NewInstruction.is_prefetch = 0;
-        NewInstruction.opcode_to_trace_string(opcode_str);
+        // NewInstruction.is_prefetch = 0;
+        opcodes::opcode_to_trace_string(NewInstruction, opcode_str);
         write_static_char(opcode_str);
         RTN_Close(arch_rtn);
     }
@@ -472,15 +816,15 @@ VOID specific_trace_generation(std::string rtn_name, const char *arch_name, int 
     }
 }
 
-VOID synthetic_trace_generation(std::string rtn_name, data_instr hmc_x86_data[20], data_instr vim_x86_data[64], data_instr mps_x86_data[28], RTN rtn) {
+VOID synthetic_trace_generation(std::string rtn_name, data_instr hmc_x86_data[20], data_instr vim_x86_data[114], data_instr mps_x86_data[28], RTN rtn) {
     // If the instruction name contains "_hmc", it can be only an HMC or x86 instruction
     if (rtn_name.size() > 4) {
         if (rtn_name.compare(4, 4, "_hmc") == 0) {
             specific_trace_generation(rtn_name, "iHMC", 20, hmc_x86_data, rtn);
         } else if (rtn_name.compare(4, 4, "_vim") == 0) {
-            specific_trace_generation(rtn_name, "iVIM", 64, vim_x86_data, rtn);
+            specific_trace_generation(rtn_name, "iVIM", 114, vim_x86_data, rtn);
         } else if (rtn_name.compare(4, 4, "_mps") == 0) {
-            specific_trace_generation(rtn_name, "iMPS", 64, mps_x86_data, rtn);
+            specific_trace_generation(rtn_name, "iMPS", 28, mps_x86_data, rtn);
         }
     }
 }
